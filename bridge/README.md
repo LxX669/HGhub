@@ -51,6 +51,10 @@
 - 不设 `ACCESS_KEY` 时，Worker 的订阅和播放跳转接口是公开的。设了密钥后，带 `key=` 的订阅地址也应当保密。
 - Worker 只按需调用上游：每页目录一次请求、每次播放一次请求，不缓存带签名的播放链接。
 
+## 修改 Cloudflare 构建设置后如何触发部署
+
+保存 **Settings → Builds** 只会更新后续构建使用的命令，不会自动发布代码。可从 **Deployments → View Build History** 重试已有构建，或向已连接的 GitHub `main` 分支提交新修改来触发自动构建。部署成功后，先测试 `/health`，再测试 `/playlist.m3u`。
+
 ## 本地测试
 
 Node.js 20+，测试无需安装依赖：

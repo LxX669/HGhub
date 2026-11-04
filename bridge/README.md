@@ -2,11 +2,12 @@
 
 本目录是**独立的 Cloudflare Worker**，把 HGhub 使用的公开短剧目录转换成 SenPlayer 能订阅的 M3U 播放列表。不修改现有 HGhub Windows / Android 客户端。
 
-> **测试版**：目前依据仓库的 `docs/API.md` 开发，已完成模拟接口的单元测试，尚未验证 Cloudflare 环境中的真实上游接口和 iPhone 实际播放。非上游官方服务。请仅访问你有权使用的内容，并遵守来源网站的使用条款和当地法律。
+> **测试版**：接口依据仓库的 `docs/API.md` 开发；第一版已由用户在 Cloudflare 和 iPhone SenPlayer 验证可以导入和播放。新增的四分类模式已通过模拟接口测试，但还需在 iPhone 上验证分组呈现。非上游官方服务。请仅访问你有权使用的内容，并遵守来源网站的使用条款和当地法律。
 
 ## 功能
 
 - `GET /playlist.m3u`：按分类生成 M3U 列表，**每一集是一个 IPTV 条目**，不是 Emby/Jellyfin 式影视库。
+- `GET /playlist.m3u?category=grouped`：**四个原站分类合并成一个 M3U 订阅**，通过每条 `#EXTINF` 中的 `group-title` 区分 AI 成人短剧、AI 成人漫剧、AI 换脸、AI 魔改。旧 `category=all` 的用法不变。
 - `GET /play/{剧目ID}/{集数}/index.m3u8`：在点击播放时向上游实时请求新的 M3U8 地址，然后 **HTTP 302 跳转**至视频 CDN，避免把短期有效的 `auth_key` 写死在订阅里。
 - `GET /health`：检查 Worker 本身能否访问（**不**代表上游可用）。
 - 可通过 Worker 运行时密钥 `ACCESS_KEY` 保护私人订阅链接。
@@ -26,13 +27,21 @@
 
    如果设置了 `ACCESS_KEY`，再在链接末尾加 `&key=<你的密钥>`。
 
+**已经部署过的用户**：无需重建 Worker。GitHub `main` 有新提交后，Cloudflare 自动构建就绪，再用新地址添加第二条订阅或修改旧订阅 URL 并刷新即可。你当前部署的构建设置应为 **Build command** `cd bridge && npm install`，**Deploy command** `cd bridge && npx wrangler deploy`（若 GitHub 连接界面没有 Root directory）。
+
+**分类版订阅链接**：
+
+`https://hghub-senplayer.<你的workers子域名>.workers.dev/playlist.m3u?category=grouped&pages=1&size=10&max_episodes=20`
+
+默认每类读取最多 10 部剧、每部最多 20 集，共 4 组；实际条目数取决于上游。若觉得加载慢，可把 `size` 调为 5、`max_episodes` 调为 10。SenPlayer 是否按组显示取决于客户端 IPTV 的分组功能，部分版本可能仍然平铺。想要原版的剧目详情、筛选和选集界面，需要 Emby/Jellyfin 等媒体库层，M3U 本身无法完整还原。
+
 **重要：** 第一次一定要打开 `/playlist.m3u`，确认看到 `#EXTM3U` 和后面的节目行。只有 `/health` 成功不足以证明上游接口能访问。
 
 ## 订阅参数
 
 | 参数 | 默认 | 可选 |
 | --- | --- | --- |
-| `category` | `all` | `all`、`ai-duanju`、`ai-manju`、`ai-huanlian`、`ai-mogai` |
+| `category` | `all` | `all`、`grouped`（四组）以及 `ai-duanju`、`ai-manju`、`ai-huanlian`、`ai-mogai` 单组 |
 | `pages` | `1` | `1`～`3` |
 | `size` | `20` | `1`～`30` |
 | `max_episodes` | `60` | `1`～`120` |

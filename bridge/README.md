@@ -17,12 +17,12 @@
 
 1. 打开 [Cloudflare 控制台](https://dash.cloudflare.com/) → **Workers & Pages** → **Create application** → 选择 **GitHub**，授权仓库 `LxX669/HGhub`。
 2. 选择仓库 `LxX669/HGhub`，分支 `main`，将 **Root directory（根目录）设置为 `bridge`**，这一项非常重要，不能选择整个 Tauri 工程的根目录。
-3. Worker 名称设置为 **`hghub-senplayer-bridge`**（与 `wrangler.jsonc` 中的 `name` 一致）。**Build command** 留空，**Deploy command** 用默认 `npx wrangler deploy`。点击 **Save and Deploy**。
+3. Worker 名称设置为 **`hghub-senplayer`**（与 `wrangler.jsonc` 中的 `name` 一致）。**Build command** 留空，**Deploy command** 用默认 `npx wrangler deploy`。点击 **Save and Deploy**。
 4. 建议在 Worker 的 **Settings → Variables & Secrets** 设置一个运行时 Secret，名称为 `ACCESS_KEY`，值为你自行生成的长随机字符串。**不要把密钥发到聊天或提交到 GitHub。**
-5. 部署后先访问：`https://hghub-senplayer-bridge.<你的workers子域名>.workers.dev/health`。它返回 `ok: true` 表示 Worker 已运行。
+5. 部署后先访问：`https://hghub-senplayer.<你的workers子域名>.workers.dev/health`。它返回 `ok: true` 表示 Worker 已运行。
 6. 在 iPhone 的 **SenPlayer → IPTV → + → 在线订阅** 填入：
 
-   `https://hghub-senplayer-bridge.<你的workers子域名>.workers.dev/playlist.m3u?category=all`
+   `https://hghub-senplayer.<你的workers子域名>.workers.dev/playlist.m3u?category=all`
 
    如果设置了 `ACCESS_KEY`，再在链接末尾加 `&key=<你的密钥>`。
 

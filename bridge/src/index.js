@@ -9,11 +9,12 @@ const CLIENT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const CATEGORY_NAMES = Object.freeze({
   all: '最新短剧',
-  'ai-duanju': 'AI短剧',
-  'ai-manju': 'AI漫剧',
+  'ai-duanju': 'AI成人短剧',
+  'ai-manju': 'AI成人漫剧',
   'ai-huanlian': 'AI换脸',
   'ai-mogai': 'AI魔改',
 });
+const GROUPED_CATEGORIES = Object.freeze(['ai-duanju', 'ai-manju', 'ai-huanlian', 'ai-mogai']);
 const BASE_MEDIA_HOSTS = ['hzjvlo.cn', 'drleao.cn'];
 
 class BridgeError extends Error {
@@ -120,38 +121,41 @@ async function upstreamGet(path, env) {
 
 async function playlist(url, env) {
   const category = url.searchParams.get('category') || 'all';
-  if (!Object.hasOwn(CATEGORY_NAMES, category)) {
+  if (category !== 'grouped' && !Object.hasOwn(CATEGORY_NAMES, category)) {
     throw new BridgeError(400, `Invalid category: ${category}`);
   }
   const pages = parseCount(url.searchParams, 'pages', 1, 3);
   const size = parseCount(url.searchParams, 'size', 20, 30);
   const maxEpisodes = parseCount(url.searchParams, 'max_episodes', 60, 120);
-  const group = safeM3uText(`HGhub · ${CATEGORY_NAMES[category]}`);
   const origin = url.origin;
   const suffix = env?.ACCESS_KEY ? `?key=${encodeURIComponent(url.searchParams.get('key') || '')}` : '';
   const lines = ['#EXTM3U'];
-  const seen = new Set();
+  const categories = category === 'grouped' ? GROUPED_CATEGORIES : [category];
 
-  for (let page = 1; page <= pages; page++) {
-    const path = category === 'all'
-      ? `/api/videos?page=${page}&size=${size}`
-      : `/api/videos/category/${category}?page=${page}&size=${size}`;
-    const data = await upstreamGet(path, env);
-    if (!Array.isArray(data.items)) throw new BridgeError(502, 'Invalid catalog response');
-    for (const video of data.items) {
-      const id = Number(video?.id);
-      const episodes = Number(video?.episode_count);
-      if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(episodes) || episodes <= 0) continue;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const showTitle = safeM3uText(video.title || `短剧 ${id}`, 70);
-      for (let ep = 1; ep <= Math.min(episodes, maxEpisodes); ep++) {
-        const title = safeM3uText(`${showTitle} · 第${ep}集`);
-        lines.push(`#EXTINF:-1 tvg-id="hghub-${id}-${ep}" tvg-name="${title}" group-title="${group}",${title}`);
-        lines.push(`${origin}/play/${id}/${ep}/index.m3u8${suffix}`);
+  for (const currentCategory of categories) {
+    const group = safeM3uText(`HGhub · ${CATEGORY_NAMES[currentCategory]}`);
+    const seen = new Set();
+    for (let page = 1; page <= pages; page++) {
+      const path = currentCategory === 'all'
+        ? `/api/videos?page=${page}&size=${size}`
+        : `/api/videos/category/${currentCategory}?page=${page}&size=${size}`;
+      const data = await upstreamGet(path, env);
+      if (!Array.isArray(data.items)) throw new BridgeError(502, 'Invalid catalog response');
+      for (const video of data.items) {
+        const id = Number(video?.id);
+        const episodes = Number(video?.episode_count);
+        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(episodes) || episodes <= 0) continue;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const showTitle = safeM3uText(video.title || `短剧 ${id}`, 70);
+        for (let ep = 1; ep <= Math.min(episodes, maxEpisodes); ep++) {
+          const title = safeM3uText(`${showTitle} · 第${ep}集`);
+          lines.push(`#EXTINF:-1 tvg-id="hghub-${id}-${ep}" tvg-name="${title}" group-title="${group}",${title}`);
+          lines.push(`${origin}/play/${id}/${ep}/index.m3u8${suffix}`);
+        }
       }
+      if (data.items.length < size) break;
     }
-    if (data.items.length < size) break;
   }
 
   if (lines.length === 1) throw new BridgeError(502, 'Catalog did not contain any available episodes');
@@ -182,10 +186,10 @@ export default {
       return textResponse('Method Not Allowed', 405);
     }
     if (url.pathname === '/health') {
-      return textResponse(JSON.stringify({ ok: true, service: 'hghub-senplayer-bridge', version: '0.1.0' }), 200, 'application/json; charset=utf-8');
+      return textResponse(JSON.stringify({ ok: true, service: 'hghub-senplayer-bridge', version: '0.2.0' }), 200, 'application/json; charset=utf-8');
     }
     if (url.pathname === '/') {
-      return textResponse('HGhub SenPlayer bridge\nSubscribe: /playlist.m3u?category=all\nCategories: all, ai-duanju, ai-manju, ai-huanlian, ai-mogai\nSee bridge/README.md on GitHub for setup.\n');
+      return textResponse('HGhub SenPlayer bridge\nSubscribe: /playlist.m3u?category=all\nCategories: all, grouped, ai-duanju, ai-manju, ai-huanlian, ai-mogai\nSee bridge/README.md on GitHub for setup.\n');
     }
     if (!authorised(url, env)) return textResponse('Unauthorized: missing or invalid key', 401);
     try {

@@ -99,3 +99,29 @@ test('supports HEAD but rejects unsupported methods', async () => {
   assert.equal(await head.text(), '');
   assert.equal((await bridge.fetch(req('/playlist.m3u', 'POST'))).status, 405);
 });
+
+test('grouped mode loads four source categories with four M3U groups', async () => {
+  const categories = ['ai-duanju', 'ai-manju', 'ai-huanlian', 'ai-mogai'];
+  const paths = fakeSource((path) => {
+    const index = categories.findIndex((category) => path.includes(`/category/${category}?`));
+    if (index < 0) throw new Error(`Unexpected category request: ${path}`);
+    return { items: [{ id: 500 + index, title: `Show ${index}`, episode_count: 2 }] };
+  });
+  const response = await bridge.fetch(req('/playlist.m3u?category=grouped&size=5&max_episodes=2'));
+  const body = await response.text();
+  assert.equal(response.status, 200);
+  assert.equal(body.split('#EXTINF:').length - 1, 8);
+  assert.deepEqual(paths, categories.map((category) => `/api/videos/category/${category}?page=1&size=5`));
+  for (const name of ['AI成人短剧', 'AI成人漫剧', 'AI换脸', 'AI魔改']) {
+    assert.equal(body.split(`group-title="HGhub · ${name}"`).length - 1, 2);
+  }
+  for (let i = 0; i < 4; i++) assert.match(body, new RegExp(`/play/${500 + i}/2/index\\.m3u8`));
+});
+
+test('old default playlist remains compatible and does not load all categories', async () => {
+  const paths = fakeSource(() => ({ items: [{ id: 901, title: 'Single', episode_count: 1 }] }));
+  const response = await bridge.fetch(req('/playlist.m3u?category=all&size=5'));
+  assert.equal(response.status, 200);
+  assert.deepEqual(paths, ['/api/videos?page=1&size=5']);
+  assert.equal((await response.text()).split('#EXTINF:').length - 1, 1);
+});
